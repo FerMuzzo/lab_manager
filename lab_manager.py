@@ -126,7 +126,7 @@ def main(page: ft.Page):
                     search_results.controls.append(ft.Text("No items found."))
                 search_results.update()
 
-            search_field = ft.TextField(label="Search items", expand=True)
+            search_field = ft.TextField(label="Buscar items", expand=True)
             return ft.Column(
                 [
                     ft.Text("Search Inventory", size=20),
