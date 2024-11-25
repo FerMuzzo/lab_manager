@@ -193,4 +193,4 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     setup_database()
-    ft.app(target=main)
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER)
