@@ -2,6 +2,10 @@ import flet as ft
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+# general variables
+app_name = "pyLab Manager"
+
+
 # SQLAlchemy setup
 Base = declarative_base()
 
@@ -11,6 +15,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
+    email = Column(String, nullable=False)
 
 class InventoryItem(Base):
     __tablename__ = "inventory"
@@ -29,13 +34,14 @@ session = Session()
 def setup_database():
     Base.metadata.create_all(engine)  # Create tables
     if not session.query(User).filter_by(username="admin").first():
-        admin = User(username="admin", password="fer")
+        admin = User(username="admin", password="fer",email="fer.muzzo@gmail.com")
         session.add(admin)
         session.commit()
 
 # Validate user login
 def validate_user(username, password):
     return session.query(User).filter_by(username=username, password=password).first() is not None
+
 
 # Add an item to the inventory
 def add_item_to_inventory(name, quantity, description):
@@ -74,42 +80,96 @@ def main(page: ft.Page):
 
     # Login View
     def login_view():
+    
+        username_field = ft.TextField(label="Username", autofocus=True, expand=True)
+        password_field = ft.TextField(label="Password", password=True, expand=True)
+
+        new_username_field = ft.TextField(label="Username", autofocus=True, expand=True)
+        new_password_field = ft.TextField(label="Password", password=True, expand=True)
+        new_email_field = ft.TextField(label="email", autofocus=True, expand=True)
+        error_text = ft.Text(color=ft.colors.RED)
+
+
         def handle_login(e):
             nonlocal authenticated_user
             if validate_user(username_field.value, password_field.value):
                 authenticated_user = username_field.value  # Track logged-in user
                 load_main_view()
             else:
+                error_text.color=ft.colors.RED
                 error_text.value = "Invalid username or password. Please try again."
                 error_text.update()
+        
+        def create_new_admin(e):
 
-        username_field = ft.TextField(label="Username", autofocus=True, expand=True)
-        password_field = ft.TextField(label="Password", password=True, expand=True)
-        error_text = ft.Text(color=ft.colors.RED)
+            def handle_close(e):
+                page.close(dlg_modal)
+
+            def create_admin(e):
+                if (not session.query(User).filter_by(username=new_username_field.value).first()) or (not session.query(User).filter_by(email=new_email_field.value).first()):
+                    admin = User(username=new_username_field.value, password=new_password_field.value,email=new_email_field.value)
+                    session.add(admin)
+                    session.commit()
+                    page.close(dlg_modal)
+                    error_text.color=ft.colors.GREEN
+                    error_text.value = "New lab and admin user created."
+                    error_text.update()
+                else:
+                    page.close(dlg_modal)
+                    error_text.color=ft.colors.RED
+                    error_text.value = "email or user name already exist."
+                    error_text.update()
+
+
+            dlg_modal = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Setting up lab..."),
+                content=ft.Column([ft.Text("Create a new admin user"),
+                                   new_username_field,
+                                   new_password_field,
+                                   new_email_field]),
+                actions=[
+                    ft.TextButton("Create", on_click=create_admin),
+                    ft.TextButton("Cancel", on_click=handle_close),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+
+            )
+
+            page.open(dlg_modal)
+
 
         return ft.View(
-            controls=[
-                ft.Column(
+            controls=[ft.Row([ft.Container(
+                content=ft.Column(
                     [
                         ft.Text("Login to Inventory Manager", size=24),
                         username_field,
                         password_field,
-                        ft.ElevatedButton("Login", on_click=handle_login),
+                        ft.Row([ft.FilledButton("Login", on_click=handle_login),
+                                ft.TextButton("Create new lab", on_click=create_new_admin)],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         error_text,
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                )
+                ),
+                width=350,
+                height=250,
+            )],
+            alignment=ft.MainAxisAlignment.CENTER)
             ]
         )
 
     # Main View with Navigation Bar
     def main_view():
+
         def switch_to_view(view_function):
             """Switch to a different view in the main interface."""
             main_container.controls.clear()
             main_container.controls.append(view_function())
             main_container.update()
+        
         def inventory_view():
             search_results = ft.Column()
 
@@ -165,8 +225,36 @@ def main(page: ft.Page):
                 scroll=ft.ScrollMode.AUTO,
             )
 
+        def toggle_theme(e):
+            # Switch between dark and light themes
+            page.theme_mode = (
+                ft.ThemeMode.DARK if page.theme_mode == ft.ThemeMode.LIGHT else ft.ThemeMode.LIGHT
+            )
+            page.update()
+
         # Navigation Bar
         def navigation_bar():
+            return ft.AppBar(
+                leading=ft.Icon(ft.icons.MORE_HORIZ_ROUNDED),
+                leading_width=40,
+                title=ft.Text(app_name),
+                center_title=False,
+                bgcolor=ft.colors.SURFACE_VARIANT,
+                actions=[
+                    ft.IconButton(ft.icons.LIGHT_MODE, on_click=toggle_theme),
+                    ft.PopupMenuButton(
+                        items=[
+                            ft.PopupMenuItem(text="Settings"),
+                            ft.PopupMenuItem(),  # divider
+                            ft.PopupMenuItem(text="Log out", icon = ft.icons.EXIT_TO_APP, on_click=logout_user),
+                        ],
+                        icon = ft.icons.EXIT_TO_APP,
+                    ),
+                ],
+            )
+        
+        # Side panel
+        def side_panel():
             return ft.Row(
                 [
                     ft.ElevatedButton("Search Inventory", on_click=lambda e: switch_to_view(inventory_view)),
